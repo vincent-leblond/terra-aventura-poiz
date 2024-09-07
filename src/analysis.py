@@ -14,6 +14,8 @@ pd.set_option("display.max_columns", 100)
 pd.set_option("display.width", 1000)
 pd.set_option("mode.chained_assignment", None)
 
+DISTANCE_TO_STATION = 1500  # meters
+
 GARE_SNCF = (
     "https://ressources.data.sncf.com/api/v2/catalog/datasets/"
     + "referentiel-gares-voyageurs/exports/geojson"
@@ -40,10 +42,13 @@ data = json.loads(poiz_data)
 # %%
 # Read data json data
 poiz = data["geocaching_map"]["markers"]
-poiz_df = pd.DataFrame(poiz)
-poiz_df["key"] = 1
+poiz_df = pd.DataFrame(poiz).query("type=='geocaching_cache'")
 poiz_df["lat"] = poiz_df.apply(lambda x: float(x["lat"]), axis=1)
 poiz_df["lng"] = poiz_df.apply(lambda x: float(x["lng"]), axis=1)
+
+poiz_gdf = gpd.GeoDataFrame(
+    poiz_df, geometry=gpd.points_from_xy(poiz_df.lng, poiz_df.lat), crs=4326
+)
 
 # %%
 # Read stations
@@ -54,33 +59,30 @@ stations = stations.query("lat==lat")
 stations["key"] = 1
 stations = stations[["uic_code", "gare_alias_libelle_fronton", "lat", "lng", "key"]]
 
-# %%
-# Compute distance to all stations
+stations_gdf = gpd.GeoDataFrame(
+    stations, geometry=gpd.points_from_xy(stations.lng, stations.lat), crs=4326
+)
+stations_buffer = gpd.GeoDataFrame(
+    stations_gdf,
+    geometry=stations_gdf.to_crs(2154).buffer(DISTANCE_TO_STATION),
+    crs=2154,
+).to_crs(4326)
 
-
-def compute_distance(x):
-    try:
-        distance = geodesic((x["lat_x"], x["lng_x"]), (x["lat_y"], x["lng_y"])).km
-    except:
-        distance = 999999
-    return distance
-
-
-df = poiz_df.merge(stations, how="left", on="key")
-df = df.query("type=='geocaching_cache'")
-df["distance"] = df.apply(lambda x: compute_distance(x), axis=1)
 
 # %%
-# Filter data and export to geojson
-table = (
-    df.query("distance < 1.5")
-    .groupby(["nid", "title", "lat_x", "lng_x"], as_index=False)
-    .first()
-)
-geotable = gpd.GeoDataFrame(
-    table, geometry=gpd.points_from_xy(table.lng_x, table.lat_x)
-)
+# spatial join
+
+geotable = gpd.sjoin(
+    stations_buffer.to_crs(2154),
+    poiz_gdf.to_crs(2154),
+    how="right",
+    lsuffix="x",
+    rsuffix="y",
+).query("uic_code==uic_code")
+
 del geotable["field_departments_cities"]
 del geotable["field_quests"]
 geotable.to_file(OUTPUT_DIR + "geotable.geojson", driver="GeoJSON")
+
+
 # %%
