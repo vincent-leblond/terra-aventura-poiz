@@ -3,14 +3,19 @@ Utils
 """
 
 import os
+import yaml
 import json
 import requests
 import geopandas as gpd
 import pandas as pd
 from pandarallel import pandarallel
 from bs4 import BeautifulSoup
+from sqlalchemy import create_engine
 
 pandarallel.initialize(progress_bar=True, verbose=2)
+
+with open("../config.yml", "r") as ymlfile:
+    config = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
 # Set display options
 pd.set_option("display.max_rows", 500)
@@ -124,6 +129,52 @@ COLORS = pd.DataFrame(
         ],
     }
 )
+
+
+def con_parameters():
+    """
+    Returns parameters for PostgreSQL connexion
+    :return: object
+    """
+    return {
+        "server": "cluster.loopingz.com",
+        "server_port": config["params"]["server_port"],
+        "user": config["params"]["user"],
+        "password": os.environ["KITE_PASSWORD"],
+    }
+
+
+def create_conf(database):
+    """
+    Returns a PostgreSQL connexion
+    :param database name of PostgreSQL database
+    :return: object
+    """
+    parameters = con_parameters()
+    return create_engine(
+        "postgresql://"
+        + parameters["user"]
+        + ":"
+        + parameters["password"]
+        + "@"
+        + parameters["server"]
+        + ":"
+        + str(parameters["server_port"])
+        + "/"
+        + database
+    )
+
+
+def get_communes():
+    engine = create_conf("zoning")
+
+    gdf = gpd.read_postgis(
+        f"SELECT id, name, ST_CENTROID(geometry) as geometry FROM com_2026 WHERE \"REG\"='75'",
+        con=engine,
+        geom_col="geometry",
+    )
+
+    return gdf
 
 
 def get_poiz():

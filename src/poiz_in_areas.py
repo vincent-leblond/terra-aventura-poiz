@@ -8,32 +8,39 @@ Compute Poï'z within areas
 from utils import *
 
 # %%
-# TODO compute time and distance with valhalla between two coordinates
+# get communes
 
-body = {
-    "sources": [
-        {"lat": 45.3849680, "lon": 1.1638579},
-        {"lat": 45.39052, "lon": 1.00609},
-    ],
-    "targets": [
-        {"lat": 45.326914, "lon": 1.183304},
-        {"lat": 45.335152, "lon": 1.048799},
-    ],
-    "costing": "auto",
-}
-
-print(matrix(body))
-
-# %%
-# TODO compute from one point, time and distance to all Poï'z & compute results (synthesis and list of Poï'z)
-
-# %%
-# TODO from all cities to all Poï'z
+communes = get_communes()
 
 # %%
 # get all list of Poï'z
 
 data = get_poiz()
+
+# %%
+# compute time and distance with valhalla between two coordinates
+
+poiz_coordinates = (
+    data[["lng", "lat"]].rename(columns={"lng": "lon"}).to_dict("records")
+)
+
+communes_coordinates = (
+    communes["geometry"]
+    .get_coordinates()
+    .rename(columns={"x": "lon", "y": "lat"})
+    .to_dict("records")
+)
+
+body = {
+    "sources": communes_coordinates,
+    "targets": poiz_coordinates,
+    "costing": "auto",
+}
+
+results = matrix(body)
+
+# %%
+# TODO add poiz and communes data to results
 
 # %%
 #
