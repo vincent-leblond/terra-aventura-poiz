@@ -18,29 +18,46 @@ communes = get_communes()
 data = get_poiz()
 
 # %%
-# compute time and distance with valhalla between two coordinates
+# loop over communes
 
-poiz_coordinates = (
-    data[["lng", "lat"]].rename(columns={"lng": "lon"}).to_dict("records")
-)
 
-communes_coordinates = (
-    communes["geometry"]
-    .get_coordinates()
-    .rename(columns={"x": "lon", "y": "lat"})
-    .to_dict("records")
-)
+def poiz_routing(coordinates, poiz=data, max_distance=100):
 
-body = {
-    "sources": communes_coordinates,
-    "targets": poiz_coordinates,
-    "costing": "auto",
-}
+    coordinates_x = coordinates.x
+    coordinates_y = coordinates.y
 
-results = matrix(body)
+    poiz["distance"] = poiz.apply(
+        lambda x: haversine((coordinates_y, coordinates_x), (x["lat"], x["lng"])),
+        axis=1,
+    )  # return distance in km
 
-# %%
-# TODO add poiz and communes data to results
+    poiz = poiz[poiz["distance"] <= max_distance].drop(columns=["geometry"])
+
+    # format data
+    poiz_coordinates = (
+        poiz[["lng", "lat"]].rename(columns={"lng": "lon"}).to_dict("records")
+    )
+
+    communes_coordinates = [{"lat": coordinates_y, "lon": coordinates_x}]
+
+    body = {
+        "sources": communes_coordinates,
+        "targets": poiz_coordinates,
+        "costing": "auto",
+    }
+
+    results = matrix(body)
+
+    print(results.head())
+    print(len(results))
+
+    return results
+
+
+communes = communes[communes["id"].isin(["24227", "87177"])]
+communes["poiz_info"] = communes["geometry"].map(poiz_routing)
+
+print(communes)
 
 # %%
 #

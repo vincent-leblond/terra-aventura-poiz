@@ -11,6 +11,7 @@ import pandas as pd
 from pandarallel import pandarallel
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
+from haversine import haversine
 
 pandarallel.initialize(progress_bar=True, verbose=2)
 
