@@ -8,12 +8,15 @@ import json
 import requests
 import geopandas as gpd
 import pandas as pd
+from tqdm import tqdm
 from pandarallel import pandarallel
 from bs4 import BeautifulSoup
 from sqlalchemy import create_engine
 from haversine import haversine
 
 pandarallel.initialize(progress_bar=True, verbose=2)
+
+tqdm.pandas(desc="Progress")
 
 with open("../config.yml", "r") as ymlfile:
     config = yaml.load(ymlfile, Loader=yaml.FullLoader)
@@ -170,7 +173,7 @@ def get_communes():
     engine = create_conf("zoning")
 
     gdf = gpd.read_postgis(
-        f"SELECT id, name, ST_CENTROID(geometry) as geometry FROM com_2026 WHERE \"REG\"='75'",
+        f"SELECT id, name, ST_CENTROID(geometry) as geometry FROM com_2026 WHERE \"DEP\" in ('23','87','24','19')",
         con=engine,
         geom_col="geometry",
     )
@@ -178,16 +181,22 @@ def get_communes():
     return gdf
 
 
-def get_poiz():
-    URL = "https://www.terra-aventura.fr/parcours"
+def get_poiz(where="local"):
 
-    html_text = requests.get(URL).text
-    soup = BeautifulSoup(html_text, "html.parser")
-    for script in soup.find_all("script"):
-        if script.get("data-drupal-selector") == "drupal-settings-json":
-            poiz_data = script.contents[0]
+    if where == "online":
+        URL = "https://www.terra-aventura.fr/parcours"
 
-    data = json.loads(poiz_data)
+        html_text = requests.get(URL).text
+        soup = BeautifulSoup(html_text, "html.parser")
+        for script in soup.find_all("script"):
+            if script.get("data-drupal-selector") == "drupal-settings-json":
+                poiz_data = script.contents[0]
+
+        data = json.loads(poiz_data)
+
+    else:
+        with open("../input/extract_website.json", "r") as f:
+            data = json.load(f)
 
     poiz = data["geocaching_map"]["markers"]
     poiz_df = pd.DataFrame(poiz).query("type=='geocaching_cache'")
@@ -213,6 +222,10 @@ def get_poiz():
     poiz_df["Kilométrage"], poiz_df["Durée"] = zip(
         *poiz_df["nid"].parallel_map(poiz_info)
     )
+
+    print("\n# Poiz total", len(poiz_df))
+    poiz_df = poiz_df.query("founded==0")
+    print("# Poiz non trouvés", len(poiz_df))
 
     poiz_gdf = poiz_df[
         [

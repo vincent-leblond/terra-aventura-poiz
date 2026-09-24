@@ -8,20 +8,20 @@ Compute Poï'z within areas
 from utils import *
 
 # %%
-# get communes
-
-communes = get_communes()
-
-# %%
 # get all list of Poï'z
 
 data = get_poiz()
 
 # %%
-# loop over communes
+# get communes
+
+communes = get_communes()
+
+# %%
+# compute stats for each municipality
 
 
-def poiz_routing(coordinates, poiz=data, max_distance=100):
+def poiz_routing(coordinates, poiz=data, max_time=30, max_distance=100):
 
     coordinates_x = coordinates.x
     coordinates_y = coordinates.y
@@ -48,16 +48,15 @@ def poiz_routing(coordinates, poiz=data, max_distance=100):
 
     results = matrix(body)
 
-    print(results.head())
-    print(len(results))
-
-    return results
+    return len(results[results["time"] <= max_time])
 
 
-communes = communes[communes["id"].isin(["24227", "87177"])]
-communes["poiz_info"] = communes["geometry"].map(poiz_routing)
+# communes = communes[communes["id"].isin(["24227", "87177"])]
+communes["count_poiz_30mn"] = communes["geometry"].progress_map(poiz_routing)
 
-print(communes)
+print(communes.sort_values("count_poiz_30mn", ascending=False).head())
+
+communes.to_file("../data/outputs/communes_poiz.gpkg", driver="GPKG")
 
 # %%
 #
