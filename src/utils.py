@@ -173,7 +173,7 @@ def get_communes():
     engine = create_conf("zoning")
 
     gdf = gpd.read_postgis(
-        f"SELECT id, name, ST_CENTROID(geometry) as geometry FROM com_2026 WHERE \"DEP\" in ('23','87','24','19')",
+        f"SELECT id, name, ST_CENTROID(geometry) as geometry FROM com_2026 WHERE \"DEP\" in ('87')",
         con=engine,
         geom_col="geometry",
     )
@@ -198,7 +198,7 @@ def get_poiz(where="local"):
         with open("../input/extract_website.json", "r") as f:
             data = json.load(f)
 
-    poiz = data["geocaching_map"]["markers"]
+    poiz = data["markers"]
     poiz_df = pd.DataFrame(poiz).query("type=='geocaching_cache'")
     poiz_df["lat"] = poiz_df.apply(lambda x: float(x["lat"]), axis=1)
     poiz_df["lng"] = poiz_df.apply(lambda x: float(x["lng"]), axis=1)
@@ -224,8 +224,11 @@ def get_poiz(where="local"):
     )
 
     print("\n# Poiz total", len(poiz_df))
-    poiz_df = poiz_df.query("founded==0")
+    poiz_df = poiz_df.query("founded==0")  # only not found
     print("# Poiz non trouvés", len(poiz_df))
+
+    poiz_df = poiz_df.query("Nom==Nom")  # only not Zicloo
+    print("# Poiz non trouvés (sans ziclou)", len(poiz_df))
 
     poiz_gdf = poiz_df[
         [
